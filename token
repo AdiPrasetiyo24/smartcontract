@@ -5,8 +5,8 @@
 
 // SPDX-License-Identifier: MIT
 /**
- * @title Sintetic Bitcoin Tesnet  ,,
- * @notice This contract implements the Sintetic Bitcoin Tesnet  ERC20 token on the BSC Tesnet network.
+ * @title your token  ,,
+ * @notice This contract implements the your token  ERC20 token on the BSC network.
  * 
  * @custom:website                                                             
  * @custom:telegram 
@@ -470,8 +470,8 @@ contract SinteticBitcoinTesnet is IERC20, Ownable, BaseToken {
     uint256 private _totalSupply;
 
     constructor() payable {
-        _name = "Sintetic Bitcoin Tesnet";
-        _symbol = "StBTCT";
+        _name = "your token";
+        _symbol = "yoto";
         _decimals = 18; //
         _mint(msg.sender, 21000000 * 10 ** uint256(_decimals)); // Total supply 21000000
         emit TokenCreated(msg.sender, address(this), TokenType.standard, VERSION);
