@@ -1,0 +1,103 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract TaxCode is ERC20, Ownable {
+    uint256 public buyTaxRate = 5; // Tax rate for buy transactions (in %)
+    uint256 public sellTaxRate = 5; // Tax rate for sell transactions (in %)
+    mapping(address => bool) private _isExcludedFromTax; // List of addresses excluded from tax
+
+    // Address of the DEX Pair (e.g., PancakeSwap pair)
+    address public dexPair;
+
+    event TaxRateUpdated(uint256 newBuyTaxRate, uint256 newSellTaxRate);
+    event ExcludedFromTax(address account, bool isExcluded);
+
+    constructor(address _dexPair) ERC20("TaxableToken", "TT") {
+        dexPair = _dexPair;
+        _isExcludedFromTax[msg.sender] = true; // Exclude owner by default
+    }
+
+    // Override transfer function to include tax logic
+    function transfer(address recipient, uint256 amount) public override returns (bool) {
+        // Apply tax only on swaps involving the DEX pair
+        if (_isSwap(_msgSender(), recipient)) {
+            uint256 taxRate = _msgSender() == dexPair ? buyTaxRate : sellTaxRate; // Buy or Sell tax
+            uint256 taxAmount = (amount * taxRate) / 100;
+            uint256 netAmount = amount - taxAmount;
+
+            if (!_isExcludedFromTax[_msgSender()] && !_isExcludedFromTax[recipient]) {
+                // Transfer tax to owner
+                _transfer(_msgSender(), owner(), taxAmount);
+            }
+
+            // Transfer remaining amount to recipient
+            _transfer(_msgSender(), recipient, netAmount);
+
+            return true;
+        }
+
+        // If not a swap, execute as a regular transfer
+        _transfer(_msgSender(), recipient, amount);
+        return true;
+    }
+
+    // Override transferFrom function to include tax logic
+    function transferFrom(
+        address sender,
+        address recipient,
+        uint256 amount
+    ) public override returns (bool) {
+        // Apply tax only on swaps involving the DEX pair
+        if (_isSwap(sender, recipient)) {
+            uint256 taxRate = sender == dexPair ? buyTaxRate : sellTaxRate; // Buy or Sell tax
+            uint256 taxAmount = (amount * taxRate) / 100;
+            uint256 netAmount = amount - taxAmount;
+
+            if (!_isExcludedFromTax[sender] && !_isExcludedFromTax[recipient]) {
+                // Transfer tax to owner
+                _transfer(sender, owner(), taxAmount);
+            }
+
+            // Transfer remaining amount to recipient
+            _transfer(sender, recipient, netAmount);
+        } else {
+            // If not a swap, execute as a regular transfer
+            _transfer(sender, recipient, amount);
+        }
+
+        // Update allowance
+        uint256 currentAllowance = allowance(sender, _msgSender());
+        require(currentAllowance >= amount, "ERC20: transfer amount exceeds allowance");
+        _approve(sender, _msgSender(), currentAllowance - amount);
+
+        return true;
+    }
+
+    // Function to set the tax rates
+    function setTaxRates(uint256 newBuyTaxRate, uint256 newSellTaxRate) external onlyOwner {
+        require(newBuyTaxRate <= 100 && newSellTaxRate <= 100, "Tax rates cannot exceed 100%");
+        buyTaxRate = newBuyTaxRate;
+        sellTaxRate = newSellTaxRate;
+        emit TaxRateUpdated(newBuyTaxRate, newSellTaxRate);
+    }
+
+    // Function to exclude an address from tax
+    function excludeFromTax(address account) external onlyOwner {
+        _isExcludedFromTax[account] = true;
+        emit ExcludedFromTax(account, true);
+    }
+
+    // Function to include an address back in tax
+    function includeInTax(address account) external onlyOwner {
+        _isExcludedFromTax[account] = false;
+        emit ExcludedFromTax(account, false);
+    }
+
+    // Internal function to check if the transaction is a swap
+    function _isSwap(address sender, address recipient) internal view returns (bool) {
+        return sender == dexPair || recipient == dexPair;
+    }
+}
